@@ -9,4 +9,8 @@ class Application extends Controller {
     Ok(views.html.index(SharedMessages.itWorks))
   }
 
+  def login = Action {
+    Ok(views.html.login())
+  }
+
 }
