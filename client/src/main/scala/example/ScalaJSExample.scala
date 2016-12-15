@@ -7,6 +7,7 @@ import shared.SharedMessages
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSExport
 import scala.util.Random
+import js.Dynamic.{ global }
 
 case class Point(x: Int, y: Int){
   def +(p: Point) = Point(x + p.x, y + p.y)
@@ -18,8 +19,15 @@ case class Point(x: Int, y: Int){
 object ScalaJSExample extends js.JSApp {
 
   @JSExport
+  def test(): Unit = {
+    global.alert("Whouch!")
+    global.console.log("Logged a message from Scala")
+  }
+
+  @JSExport
   def main(): Unit = {
     dom.document.getElementById("scalajsShoutOut").textContent = SharedMessages.itWorks
+    global.console.log(s"elements: ${dom.document.getElementsByName("div")}")
 
     val canvas = dom.document.getElementById("canvas").asInstanceOf[html.Canvas]
 

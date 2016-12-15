@@ -1,0 +1,23 @@
+@(form: Form[models.LoginForm.LoginData])(implicit lang: play.api.i18n.Messages)
+
+@main("Login") {
+<script type="text/javascript" src="/assets/client-fastopt.js"></script>
+<link rel="stylesheet" media="screen" href="@routes.Assets.versioned("stylesheets/style.css")">
+  @helper.form(action = routes.Application.loginSubmit){
+  <div id="wrap">
+  <div id="regbar">
+    <div class="login">
+      <div class="formholder">
+        <div class="randompad">
+           <fieldset>
+             @helper.inputText(form("username"), 'type -> "user_name", 'placeholder -> "aaaa")
+             <input type="submit" value="Pick name" />
+ 
+           </fieldset>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+  }
+}
