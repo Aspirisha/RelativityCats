@@ -1,129 +1,78 @@
 package models
 
-import akka.actor.{Actor, ActorRef, Props}
-import akka.pattern.ask
 import akka.persistence.PersistentActor
 import akka.util.Timeout
-import com.google.common.html.HtmlEscapers
-import models.GameManager.NewUser
-import play.api.libs.concurrent.Akka
+import play.Logger
 import play.api.libs.iteratee._
 import play.api.libs.json._
-import play.{Logger}
 
-import scala.annotation.tailrec
 import scala.concurrent.duration._
-import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.Random
-import play.api.Play.current
 
 /**
   * Stores state of the room
   */
 trait RoomState {
 
-  def get(username: String): Option[User]
+  def getPlayer(username: String): Option[Player]
 
-  def list(): List[User]
+  def list(): List[String]
 
-  def save(user: User): Boolean
+  def addUser(user: String): Boolean
 
   def remove(username: String): Boolean
 
-  def existingRoles(): Set[UserRole]
+  def existingRoles(): Set[PlayerRole]
 }
 
-object RoomStateImpl {
-  val possibleRoles : Set[UserRole] = Set(Cat, Mouse)
+object GameManagerState {
+  val possibleRoles : Set[PlayerRole] = Set(Cat, Mouse)
 }
 
-class RoomStateImpl extends RoomState {
-  import RoomStateImpl._
-  import scala.collection.mutable.{Map=>MutableMap}
+class GameManagerState extends RoomState {
+  import GameManagerState._
 
-  val users = MutableMap.empty[String, UserRole] //Map of username, avatar
+  import scala.collection.mutable.{Map => MutableMap, Set => MutableSet}
+  val users = MutableSet.empty[String]
+  val players = MutableMap.empty[String, Player]
   val roles = {
     MutableMap(possibleRoles map (t => t -> 0) toList: _*)
   }
 
-  override def get(username: String): Option[User] = {
-    users.get(username).map{User(username, _)}
+  override def getPlayer(username: String): Option[Player] = {
+    players.get(username)
   }
 
-  override def list(): List[User] = {
-    users.toList.map{e => User(e._1, e._2)}
-  }
-
-  override def save(user: User): Boolean = {
-    users.put(user.username, user.role) match {
-      case Some(role: UserRole) =>
-        roles.put(role, roles.getOrElse(role, 0) + 1)
-        true
-      case None => false
-    }
+  override def list(): List[String] = {
+    users.toList
   }
 
   override def remove(username: String): Boolean = {
-    users.remove(username).exists { s => true }
+    players.remove(username)
+    users.remove(username)
   }
 
-  override def existingRoles(): Set[UserRole] = {
-    users.map{case (x:String,y:UserRole) => y}.toSet
+  override def existingRoles(): Set[PlayerRole] = {
+    players.map{case (x:String, y:PlayerRole) => y}.toSet
   }
-}
 
-class GameManagerState {
-  import scala.collection.mutable.{Map=>MutableMap, Set=>MutableSet}
-  val rooms = MutableMap[Int,ActorRef]()
-  val users = MutableSet[String]()
+  override def addUser(username: String): Boolean = {
+    users.add(username)
+  }
 }
 
 object GameManager {
   case class NewUser(username: String)
+  val rand = new Random()
 }
 
 class GameManager extends PersistentActor {
-  import scala.collection.mutable.{Map=>MutableMap}
+  import GameManager._
+
+  import scala.collection.mutable.{Map => MutableMap}
 
   implicit val timeout = Timeout(1 second)
   val state = new GameManagerState
-
-  @tailrec
-  final def createRoom(name: String): (Int, ActorRef) = {
-    val id = new Random().nextInt
-    if (state.rooms.contains(id)) createRoom(name) else {
-      val room = context.actorOf(Props(new GameRoom(name, id)))
-      state.rooms.put(id, room)
-      (id, room)
-    }
-  }
-
-  def join(username: String, roomId: Int): Future[(Iteratee[JsValue,_],Enumerator[JsValue])] = {
-    state.rooms.get(roomId) match {
-      case Some(room) => (room ? Join(username)).map {
-
-        case Connected(user, enumerator) =>
-          // Create an Iteratee to consume the feed
-          val iteratee = Iteratee.foreach[JsValue] { event =>
-            println(event)
-          }.map { _ =>
-            room ! Quit(user)
-          }
-          (iteratee, enumerator)
-
-        case CannotConnect(error) =>
-          // Connection error
-          // A finished Iteratee sending EOF
-          val iteratee = Done[JsValue, Unit]((), Input.EOF)
-          // Send an error and close the socket
-          val enumerator = Enumerator[JsValue](JsObject(Seq("error" -> JsString(error))))
-            .andThen(Enumerator.enumInput(Input.EOF))
-          (iteratee, enumerator)
-      }
-    }
-  }
-
 
   override def receive = {
     case NewUser(username) =>
@@ -137,75 +86,15 @@ class GameManager extends PersistentActor {
       }
   }
 
-  class GameRoom(name: String, id: Int) extends PersistentActor {
-    import GameRoom._
-
-    val state = new RoomStateImpl
-    val (chatEnumerator, chatChannel) = Concurrent.broadcast[JsValue]
-
-    def randomRole(): UserRole = {
-      RoomStateImpl.possibleRoles.toList(rand.nextInt(RoomStateImpl.possibleRoles.size))
-    }
-
-    def almostRandomRole(): UserRole = {
-      (RoomStateImpl.possibleRoles -- state.existingRoles()).find(x => true) match {
-        case Some(role) => role // there are some roles that are not present in room
-        case None => randomRole()
-      }
-    }
-
-    override def receive = {
-
-      case Join(username) => {
-        state.get(username).map{ user =>
-          println(state.list())
-          sender ! CannotConnect("This username is already used")
-        }.getOrElse{
-          val user = User(username, randomRole())
-          state.save(user)
-          sender ! Connected(user, chatEnumerator)
-          self ! NotifyJoin(user)
-        }
-      }
-
-      case NotifyJoin(user) =>
-        notifyAll("join", user, "has entered the room")
-
-      case Quit(user) =>
-        state.remove(user.username)
-        notifyAll("quit", user, "has left the room")
-
-      case Talk(user, text) =>
-        println(s"$user says: $text")
-
-    }
-
-    def notifyAll(kind: String, user: User, text: String) {
-      def userToJson(user: User) = Json.obj("name"->user.username, "role"->user.role.name)
-      val msg = JsObject(
-        Seq(
-          "kind" -> JsString(kind),
-          "user" -> userToJson(user),
-          "message" -> JsString(text),
-          "members" -> JsArray(state.list.map(userToJson(_)))
-        )
-      )
-      chatChannel.push(msg)
-    }
-
-    override def receiveRecover: Receive = {
-      case x: Any => Logger.debug("receiveRecover")
-    }
-
-    override def receiveCommand: Receive = {
-      case x: Any => Logger.debug("receiveCommand")
-    }
-
-    override def persistenceId: String = s"Room$id"
+  def randomRole(): PlayerRole = {
+    GameManagerState.possibleRoles.toList(rand.nextInt(GameManagerState.possibleRoles.size))
   }
 
-  object GameRoom {
-    val rand = new Random()
+  def almostRandomRole(): PlayerRole = {
+    (GameManagerState.possibleRoles -- state.existingRoles()).find(x => true) match {
+      case Some(role) => role // there are some roles that are not present in room
+      case None => randomRole()
+    }
   }
 
   override def receiveRecover: Receive = {
@@ -221,16 +110,20 @@ class GameManager extends PersistentActor {
 
 
 
-case object Cat extends UserRole { val name = "Cat" }
-case object Mouse extends UserRole { val name = "Mouse" }
+case object Cat extends PlayerRole { val name = "Cat" }
+case object Mouse extends PlayerRole { val name = "Mouse" }
 
-sealed trait UserRole { def name: String }
-case class User(username: String, role: UserRole)
+sealed trait PlayerRole { def name: String }
+abstract class Player(username: String, role: PlayerRole) {
+  var hp: Int
+}
+
+
 
 case class Join(username: String)
-case class Quit(user: User)
-case class Talk(user: User, text: String)
-case class NotifyJoin(user: User)
+case class Quit(user: Player)
+case class Talk(user: Player, text: String)
+case class NotifyJoin(user: Player)
 
-case class Connected(user: User, enumerator:Enumerator[JsValue])
+case class Connected(user: Player, enumerator:Enumerator[JsValue])
 case class CannotConnect(msg: String)

@@ -25,14 +25,16 @@ lazy val client = (project in file("client")).settings(
   persistLauncher in Test := false,
   libraryDependencies ++= Seq(
     "org.scala-js" %%% "scalajs-dom" % "0.9.1",
-    "com.typesafe.akka" %% "akka-actor" % "2.3.4",
-    "com.lihaoyi" %%% "scalatags" % "0.6.2"
-  )
+    "com.typesafe.akka" %% "akka-actor" % "2.4.14",
+    "com.lihaoyi" %%% "scalatags" % "0.6.2",
+    "com.typesafe.akka" %% "akka-http-core" % "10.0.0",
+    "com.typesafe.akka" %% "akka-http" % "10.0.0")
 ).enablePlugins(ScalaJSPlugin, ScalaJSWeb).
   dependsOn(sharedJs)
 
 lazy val shared = (crossProject.crossType(CrossType.Pure) in file("shared")).
-  settings(scalaVersion := scalaV).
+  settings(scalaVersion := scalaV,
+    libraryDependencies ++= Seq("com.typesafe.play" %% "play" % "2.5.9")).
   jsConfigure(_ enablePlugins ScalaJSWeb)
 
 lazy val sharedJvm = shared.jvm

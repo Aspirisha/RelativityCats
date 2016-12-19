@@ -22,8 +22,10 @@ f onComplete {
 println(12)
 
 
-
 def printChunks: Iteratee[Int, Unit] =
   Iteratee.foreach[Int]( s => println(s) )
 val enum = Enumerator(1,2,3,5)
 Await.result(enum.run(printChunks), Duration(10, "seconds"))
+
+val maze = MazeGen(12)
+println(maze toString)
