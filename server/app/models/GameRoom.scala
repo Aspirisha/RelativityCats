@@ -9,7 +9,7 @@ import models.GameManager.NewUser
 import play.api.libs.concurrent.Akka
 import play.api.libs.iteratee._
 import play.api.libs.json._
-import play.{Logger => log}
+import play.{Logger}
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
@@ -127,13 +127,13 @@ class GameManager extends PersistentActor {
 
   override def receive = {
     case NewUser(username) =>
-      println("Here!")
+      Logger.debug("Received new user message")
       if (state.users.contains(username)) {
-        false
+        sender ! false
       }
       else {
         state.users += username
-        true
+        sender ! true
       }
   }
 
@@ -193,9 +193,13 @@ class GameManager extends PersistentActor {
       chatChannel.push(msg)
     }
 
-    override def receiveRecover: Receive = ???
+    override def receiveRecover: Receive = {
+      case x: Any => Logger.debug("receiveRecover")
+    }
 
-    override def receiveCommand: Receive = ???
+    override def receiveCommand: Receive = {
+      case x: Any => Logger.debug("receiveCommand")
+    }
 
     override def persistenceId: String = s"Room$id"
   }
@@ -204,9 +208,13 @@ class GameManager extends PersistentActor {
     val rand = new Random()
   }
 
-  override def receiveRecover: Receive = ???
+  override def receiveRecover: Receive = {
+    case x: Any => Logger.debug("GameManager: receiveRecover")
+  }
 
-  override def receiveCommand: Receive = ???
+  override def receiveCommand: Receive = {
+    case x: Any => Logger.debug("GameManager: receiveCommand")
+  }
 
   override def persistenceId: String = "1"
 }
