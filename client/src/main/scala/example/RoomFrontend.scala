@@ -1,16 +1,17 @@
 package example
 
+import be.doeraene.spickling.jsany._
 import akka.actor.{ActorRef, ActorSystem}
+import be.doeraene.spickling.PicklerRegistry
 import org.scalajs.dom
-import org.scalajs.dom.{Document, WebSocket, html}
+import org.scalajs.dom._
 import play.api.libs.json.{JsValue, Json}
-import shared.{ClientMessage, MessageA, SharedMessages}
+import shared.{ClientMessage, RoomStatMessage, SharedMessages}
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSExport
 import scala.util.Random
 import js.Dynamic.{global => g}
-
 case class Point(x: Int, y: Int){
   def +(p: Point) = Point(x + p.x, y + p.y)
   def /(d: Int) = Point(x / d, y / d)
@@ -72,14 +73,14 @@ object RoomFrontend extends js.JSApp {
       ctx.fillRect(0, 0, 255, 255)
     }
 
-    def run = for (i <- 0 until 10){
+    def run = for (i <- 0 until 10) {
       if (count % 3000 == 0) clear()
       count += 1
       p = (p + corners(Random.nextInt(3))) / 2
 
       val height = 512.0 / (255 + p.y)
       val r = (p.x * height).toInt
-      val g = ((255-p.x) * height).toInt
+      val g = ((255 - p.x) * height).toInt
       val b = p.y
       ctx.fillStyle = s"rgb($g, $r, $b)"
 
@@ -90,67 +91,23 @@ object RoomFrontend extends js.JSApp {
   }
 
   def joinGame(name: String): Unit = {
+    def getWebsocketUri(document: Document, nameOfChatParticipant: String): String = {
+      val wsProtocol = if (dom.document.location.protocol == "https:") "wss" else "ws"
+
+      g.console.debug(s"host is ${dom.document.location.host}")
+      s"$wsProtocol://${dom.document.location.host}/game/socket?name=$nameOfChatParticipant"
+    }
+
     val chat = new WebSocket(getWebsocketUri(dom.document, name))
-  }
 
-  def getWebsocketUri(document: Document, nameOfChatParticipant: String): String = {
-    val wsProtocol = if (dom.document.location.protocol == "https:") "wss" else "ws"
+    chat.onmessage = { (event: MessageEvent) ⇒
+      val msg = ClientMessage.clientSideDeserializer(event.data.toString)
+      msg match {
+        case msg:RoomStatMessage => g.console.debug(s"received room state ${msg.data}")
+      }
 
-    g.console.debug(s"host is ${dom.document.location.host}")
-    s"$wsProtocol://${dom.document.location.host}/game/socket?name=$nameOfChatParticipant"
-  }
-}
-
-object Connection {
-  import akka.{ Done, NotUsed }
-  import akka.stream.ActorMaterializer
-  import akka.stream.scaladsl._
-  import akka.http.scaladsl.Http
-  import akka.stream.ActorMaterializer
-  import akka.stream.scaladsl._
-  import akka.http.scaladsl.model._
-  import akka.http.scaladsl.model.ws._
-
-  import scala.concurrent.Future
-
-  implicit val system = ActorSystem()
-  implicit val materializer = ActorMaterializer()
-  import system.dispatcher
-
-  // print each incoming strict text message
-  val printSink: Sink[Message, Future[Done]] =
-    Sink.foreach {
-      case message: MessageA =>
-        println(message.data)
     }
 
-  val helloSource: Source[Message, NotUsed] =
-    Source.single(TextMessage(Json.toJson(MessageA(0, "hello world!")).toString()))
 
-  // the Future[Done] is the materialized value of Sink.foreach
-  // and it is completed when the stream completes
-  val flow: Flow[Message, Message, Future[Done]] =
-    Flow.fromSinkAndSourceMat(printSink, helloSource)(Keep.left)
-
-  // upgradeResponse is a Future[WebSocketUpgradeResponse] that
-  // completes or fails when the connection succeeds or fails
-  // and closed is a Future[Done] representing the stream completion from above
-  val (upgradeResponse, closed) =
-    Http().singleWebSocketRequest(WebSocketRequest("ws://echo.websocket.org"), flow)
-
-  val connected = upgradeResponse.map { upgrade =>
-    g.console.debug("Connected!")
-    // just like a regular http request we can get 404 NotFound,
-    // with a response body, that will be available from upgrade.response
-    if (upgrade.response.status == StatusCodes.OK) {
-      Done
-    } else {
-      throw new RuntimeException(s"Connection failed: ${upgrade.response.status}")
-    }
   }
-
-  // in a real application you would not side effect here
-  // and handle errors more carefully
-  connected.onComplete(println)
-  closed.foreach(_ => println("closed"))
 }

@@ -1,4 +1,5 @@
 lazy val scalaV = "2.11.8"
+lazy val playVersion = "2.5.9"
 
 lazy val server = (project in file("server")).settings(
   scalaVersion := scalaV,
@@ -12,7 +13,8 @@ lazy val server = (project in file("server")).settings(
     specs2 % Test,
     "com.typesafe.akka" % "akka-persistence_2.11" % "2.4.14",
     "org.iq80.leveldb"            % "leveldb"          % "0.7",
-    "org.fusesource.leveldbjni"   % "leveldbjni-all"   % "1.8"
+    "org.fusesource.leveldbjni"   % "leveldbjni-all"   % "1.8",
+    "com.typesafe.akka" %% "akka-cluster-tools" % "2.4.14"
   ),
   // Compile the project before generating Eclipse files, so that generated .scala or .class files for views and routes are present
   EclipseKeys.preTasks := Seq(compile in Compile)
@@ -28,13 +30,15 @@ lazy val client = (project in file("client")).settings(
     "com.typesafe.akka" %% "akka-actor" % "2.4.14",
     "com.lihaoyi" %%% "scalatags" % "0.6.2",
     "com.typesafe.akka" %% "akka-http-core" % "10.0.0",
+    "be.doeraene" %%% "scalajs-pickling" % "0.4.0",
     "com.typesafe.akka" %% "akka-http" % "10.0.0")
 ).enablePlugins(ScalaJSPlugin, ScalaJSWeb).
   dependsOn(sharedJs)
 
 lazy val shared = (crossProject.crossType(CrossType.Pure) in file("shared")).
   settings(scalaVersion := scalaV,
-    libraryDependencies ++= Seq("com.typesafe.play" %% "play" % "2.5.9")).
+    libraryDependencies ++= Seq("com.typesafe.play" %% "play" % playVersion,
+                                "com.lihaoyi" %%% "upickle" % "0.4.3")).
   jsConfigure(_ enablePlugins ScalaJSWeb)
 
 lazy val sharedJvm = shared.jvm

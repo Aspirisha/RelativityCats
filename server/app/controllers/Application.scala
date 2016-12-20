@@ -3,6 +3,7 @@ package controllers
 import java.util.Calendar
 
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
+import akka.cluster.pubsub.{DistributedPubSub, DistributedPubSubMediator}
 import akka.pattern.ask
 import akka.stream.Materializer
 import akka.util.Timeout
@@ -12,6 +13,7 @@ import models.{GameManager, LoginForm}
 import play.api.data.Form
 import play.api.mvc._
 import shared._
+import play.api.Play._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -29,7 +31,8 @@ case class User(name: String)
 
 class Application @Inject()(val messagesApi: MessagesApi,  materializer: Materializer) extends Controller {
   import Application._
-
+  import scala.collection.mutable.{Map => MutableMap}
+  val userToSocket = MutableMap.empty[String, ActorRef]
   implicit val timeout = Timeout(20 second)
 
   def game = Action {
@@ -65,49 +68,39 @@ class Application @Inject()(val messagesApi: MessagesApi,  materializer: Materia
 
   def socket = WebSocket.accept[JsValue, JsValue] { request =>
     val name = request.queryString.get("name").flatMap(_.headOption)
-    name foreach {x => Logger.debug(s"name got from socket is $name")}
-    ActorFlow.actorRef(out => MyWebSocketActor.props(out, name))(system, materializer)
+
+    name match {
+      case Some(x) =>
+        Logger.debug(s"name got from socket is $x")
+        ActorFlow.actorRef(out => MyWebSocketActor.props(out, x))(system, materializer)
+      case _ => throw new Exception("Expected user name")
+    }
+
   }
 
   object MyWebSocketActor {
-    def props(out: ActorRef, name: Option[String]) = Props(new MyWebSocketActor(out, name))
+    def props(out: ActorRef, user: String) = Props(new MyWebSocketActor(out, user))
   }
 
-  class MyWebSocketActor(out: ActorRef, name: Option[String]) extends Actor {
-    var user: Option[String] = None
+  class MyWebSocketActor(out: ActorRef, name: String) extends Actor {
+    import DistributedPubSubMediator.{ Subscribe, SubscribeAck }
+    val mediator = DistributedPubSub(context.system).mediator
+    mediator ! Subscribe("websocket_messages", self)
 
     def receive = {
       case request: JsValue =>
-        val response = handleMessage(request)
+        val response = handleMessage(Json.stringify(request))
         out ! response
+      case SubscribeAck(Subscribe("websocket_messages", None, `self`)) ⇒
+        Logger.info("subscribing");
     }
 
-    def isAuthenticated = user.isDefined
-
-    def handleMessage(msg: ClientMessage): JsValue = {
+    def handleMessage(msg: ClientMessage): String = {
       lazy val responseTimestamp = Calendar.getInstance().getTime.getTime
       msg match {
-        case msg: LoginMessage if !isAuthenticated => handleLoginMessage(msg)
-        case msg: ClientMessage if !isAuthenticated => ErrorMessage(responseTimestamp, "Client not logged in")
-        case msg: MessageA => handleMessageA(msg)
-        case msg: MessageB => handleMessageB(msg)
+        case msg: RoomStatMessage => msg // just pass it
         case _ => ErrorMessage(responseTimestamp, "Unsupported message type")
       }
-    }
-
-    def handleLoginMessage(msg: LoginMessage): JsValue = {
-      user = Some(msg.login)
-
-      LoginResponseMessage(Calendar.getInstance().getTime.getTime, LoginResponseMessage.resultOk)
-    }
-
-    def handleMessageA(msg: MessageA): JsValue = {
-      // Message handling…
-      MessageA(Calendar.getInstance().getTime.getTime, "some data A")
-    }
-    def handleMessageB(msg: MessageB): JsValue = {
-      // Message handling…
-      MessageB(Calendar.getInstance().getTime.getTime, "some data B")
     }
   }
 
