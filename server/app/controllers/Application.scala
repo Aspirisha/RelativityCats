@@ -5,7 +5,8 @@ import java.util.Calendar
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 import akka.cluster.pubsub.{DistributedPubSub, DistributedPubSubMediator}
 import akka.pattern.ask
-import akka.stream.Materializer
+import akka.stream.{Materializer, OverflowStrategy}
+import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.util.Timeout
 import com.google.inject.Inject
 import models.GameManager.NewUser
@@ -26,13 +27,14 @@ import play.api.libs.streams.ActorFlow
 import play.api.libs.json._
 
 import scala.language.postfixOps
+import shared.Message._
 
 case class User(name: String)
 
 class Application @Inject()(val messagesApi: MessagesApi,  materializer: Materializer) extends Controller {
   import Application._
   import scala.collection.mutable.{Map => MutableMap}
-  val userToSocket = MutableMap.empty[String, ActorRef]
+
   implicit val timeout = Timeout(20 second)
 
   def game = Action {
@@ -75,7 +77,6 @@ class Application @Inject()(val messagesApi: MessagesApi,  materializer: Materia
         ActorFlow.actorRef(out => MyWebSocketActor.props(out, x))(system, materializer)
       case _ => throw new Exception("Expected user name")
     }
-
   }
 
   object MyWebSocketActor {
@@ -83,23 +84,21 @@ class Application @Inject()(val messagesApi: MessagesApi,  materializer: Materia
   }
 
   class MyWebSocketActor(out: ActorRef, name: String) extends Actor {
-    import DistributedPubSubMediator.{ Subscribe, SubscribeAck }
-    val mediator = DistributedPubSub(context.system).mediator
-    mediator ! Subscribe("websocket_messages", self)
+    gameManager ! (name -> self)
 
     def receive = {
       case request: JsValue =>
-        val response = handleMessage(Json.stringify(request))
-        out ! response
-      case SubscribeAck(Subscribe("websocket_messages", None, `self`)) ⇒
-        Logger.info("subscribing");
+        deserialize(Json.stringify(request)) match {
+          case x: ClientMessage => out ! handleMessage(x)
+        }
+      case x: ServerMessage =>
+        Logger.debug(s"ServerMessage: $x")
+        out ! Json.parse(serialize(x))
     }
 
-    def handleMessage(msg: ClientMessage): String = {
-      lazy val responseTimestamp = Calendar.getInstance().getTime.getTime
+    def handleMessage(msg: ClientMessage): JsValue = {
       msg match {
-        case msg: RoomStatMessage => msg // just pass it
-        case _ => ErrorMessage(responseTimestamp, "Unsupported message type")
+        case _ => Json.parse(ClientErrorMessage("Unsupported message type"))
       }
     }
   }

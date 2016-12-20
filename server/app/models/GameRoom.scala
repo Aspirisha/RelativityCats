@@ -1,10 +1,12 @@
 package models
 
+import akka.actor.ActorRef
 import akka.persistence.PersistentActor
 import akka.util.Timeout
 import play.Logger
 import play.api.libs.iteratee._
 import play.api.libs.json._
+import shared.{ClientMessage, RoomStatMessage, RoomState}
 
 import scala.concurrent.duration._
 import scala.util.Random
@@ -73,6 +75,8 @@ class GameManager extends PersistentActor {
 
   implicit val timeout = Timeout(1 second)
   val state = new GameManagerState
+  val userToRef = MutableMap.empty[String, ActorRef]
+
 
   override def receive = {
     case NewUser(username) =>
@@ -84,6 +88,13 @@ class GameManager extends PersistentActor {
         state.users += username
         sender ! true
       }
+    case (x:String, y:ActorRef) =>
+      Logger.debug("Received actorRef")
+      userToRef.put(x, y)
+      userToRef foreach {case (_, actor) => {
+        Logger.debug("Sending broadcast")
+        actor ! RoomStatMessage(RoomState(state.list()))
+      }}
   }
 
   def randomRole(): PlayerRole = {

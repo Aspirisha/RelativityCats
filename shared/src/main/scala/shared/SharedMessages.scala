@@ -6,23 +6,7 @@ object SharedMessages {
   def itWorks = "It works!"
 }
 
-abstract class MessageObjectTypeAware(val MSG_TYPE: String)
-
-
-object RoomStatMessage extends MessageObjectTypeAware("message_room_statistics") {
-  //implicit val format = Json.format[RoomStatMessage]
-}
-object MessageB extends MessageObjectTypeAware("message_b") {
- // implicit val format = Json.format[MessageB]
-}
-object ErrorMessage extends MessageObjectTypeAware("ERROR") {
- // implicit val format = Json.format[ErrorMessage]
-}
-object LoginMessage extends MessageObjectTypeAware("message_login") {
- // implicit val format = Json.format[LoginMessage]
-}
-
-object LoginResponseMessage extends MessageObjectTypeAware("message_login_reponse") {
+object LoginResponseMessage {
  // implicit val format = Json.format[LoginResponseMessage]
 
   val resultOk = "OK"
@@ -35,24 +19,22 @@ object ErrorMessageType {
 
 case class RoomState(users: List[String])
 
-sealed trait ClientMessage
-case class RoomStatMessage(timestamp: Long, data: RoomState, messageType: String = RoomStatMessage.MSG_TYPE) extends ClientMessage
-case class LoginMessage(timestamp: Long, login: String, messageType: String = LoginMessage.MSG_TYPE) extends ClientMessage
-case class LoginResponseMessage(timestamp: Long, result: String, messageType: String = LoginResponseMessage.MSG_TYPE) extends ClientMessage
-case class MessageB(timestamp: Long, data: String, messageType: String = MessageB.MSG_TYPE) extends ClientMessage
-case class ErrorMessage(timestamp: Long, data: String, messageType: String = ErrorMessage.MSG_TYPE) extends ClientMessage
+sealed trait Message
+sealed trait ClientMessage extends Message
+sealed trait ServerMessage extends Message
+// server to client messages
+case class RoomStatMessage(data: RoomState, messageType: String = "room_stat") extends ServerMessage
 
-object ClientMessage {
-  implicit def jsValue2ClientMessage(jsValue: String): ClientMessage = {
-    upickle.default.read[ClientMessage](jsValue)
+//client to server messages
+case class ClientErrorMessage(data: String, messageType: String = "error") extends ClientMessage
+case class ServerErrorMessage(data: String, messageType: String = "error") extends ServerMessage
+
+object Message {
+  implicit def deserialize(jsValue: String): Message = {
+    upickle.default.read[Message](jsValue)
   }
 
-  implicit def clientMessage2jsValue(clientMessage: ClientMessage): String = {
-    upickle.default.write(clientMessage)
+  implicit def serialize(msg: Message): String = {
+    upickle.default.write(msg)
   }
-
-  def clientSideDeserializer(jsString: String) = {
-    upickle.default.read[ClientMessage](jsString)
-  }
-
 }

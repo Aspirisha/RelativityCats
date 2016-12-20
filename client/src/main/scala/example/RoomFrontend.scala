@@ -6,7 +6,7 @@ import be.doeraene.spickling.PicklerRegistry
 import org.scalajs.dom
 import org.scalajs.dom._
 import play.api.libs.json.{JsValue, Json}
-import shared.{ClientMessage, RoomStatMessage, SharedMessages}
+import shared.{ClientMessage, Message, RoomStatMessage, SharedMessages}
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSExport
@@ -101,7 +101,8 @@ object RoomFrontend extends js.JSApp {
     val chat = new WebSocket(getWebsocketUri(dom.document, name))
 
     chat.onmessage = { (event: MessageEvent) ⇒
-      val msg = ClientMessage.clientSideDeserializer(event.data.toString)
+      val msg = Message.deserialize(event.data.toString)
+      g.console.debug(s"received room state ${msg}")
       msg match {
         case msg:RoomStatMessage => g.console.debug(s"received room state ${msg.data}")
       }
