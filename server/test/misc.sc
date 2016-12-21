@@ -27,5 +27,6 @@ def printChunks: Iteratee[Int, Unit] =
 val enum = Enumerator(1,2,3,5)
 Await.result(enum.run(printChunks), Duration(10, "seconds"))
 
-val maze = MazeGen(12)
-println(maze toString)
+val m = Maze(30, 2)
+println(m toString)
+m.exit

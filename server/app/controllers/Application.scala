@@ -9,8 +9,8 @@ import akka.stream.{Materializer, OverflowStrategy}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.util.Timeout
 import com.google.inject.Inject
-import models.GameManager.NewUser
-import models.{GameManager, LoginForm}
+import models.GameRoom.{NewUser, ValidateLoggedIn}
+import models.{GameRoom, LoginForm}
 import play.api.data.Form
 import play.api.mvc._
 import shared._
@@ -37,8 +37,11 @@ class Application @Inject()(val messagesApi: MessagesApi,  materializer: Materia
 
   implicit val timeout = Timeout(20 second)
 
-  def game = Action {
-    Ok(views.html.game(SharedMessages.itWorks)).withNewSession
+  def game(name: String) = Action.async {
+    gameManager ? ValidateLoggedIn(name) map {
+      case true => Ok(views.html.game(name))
+      case false => Redirect(routes.Application.login())
+    }
   }
 
 
@@ -62,8 +65,8 @@ class Application @Inject()(val messagesApi: MessagesApi,  materializer: Materia
         Logger.debug(s"User=${loginForm.username}")
 
         gameManager ? NewUser(loginForm.username) map {
-          case true => Ok(views.html.game(loginForm.username))
-          case false => Ok(views.html.login(LoginForm.form))
+          case true => Redirect(routes.Application.game(loginForm.username))
+          case false => Redirect(routes.Application.login())
         }
       })
   }
@@ -108,5 +111,5 @@ class Application @Inject()(val messagesApi: MessagesApi,  materializer: Materia
 
 object Application {
   implicit val system = ActorSystem("mySystem")
-  val gameManager = system.actorOf(Props[GameManager], "game_manager")
+  val gameManager = system.actorOf(Props[GameRoom], "game_manager")
 }

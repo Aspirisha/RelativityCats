@@ -7,6 +7,9 @@ resolvers += "Typesafe repository" at "https://repo.typesafe.com/typesafe/releas
 resolvers += Resolver.url("heroku-sbt-plugin-releases",
   url("https://dl.bintray.com/heroku/sbt-plugins/"))(Resolver.ivyStylePatterns)
 
+resolvers += "sbt-idea-repo" at "http://mpeltonen.github.com/maven/"
+addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.6.0")
+
 // Sbt plugins
 addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.5.9")
 

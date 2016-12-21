@@ -39,8 +39,8 @@ object RoomFrontend extends js.JSApp {
     val ctx = canvas.getContext("2d")
       .asInstanceOf[dom.CanvasRenderingContext2D]
 
-    canvas.width = canvas.parentElement.clientWidth
-    canvas.height = canvas.parentElement.clientHeight
+    //canvas.width = canvas.parentElement.clientWidth
+    //canvas.height = canvas.parentElement.clientHeight
     ctx.fillStyle = "#f8f8f8"
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
