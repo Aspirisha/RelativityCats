@@ -16,7 +16,6 @@ object GameRoom {
   case class ValidateLoggedIn(username: String)
   val rand = new Random()
   val usersToStartGame = 2 // this is very dummy for now
-  val possibleRoles : Set[PlayerRole] = Set(Cat, Mouse)
 }
 
 class GameRoom extends PersistentActor {
@@ -27,13 +26,10 @@ class GameRoom extends PersistentActor {
   implicit val timeout = Timeout(1 second)
 
   val users = MutableSet.empty[String]
-  val roles = {
-    MutableMap(possibleRoles map (t => t -> 0) toList: _*)
-  }
   val userToRef = MutableMap.empty[String, ActorRef]
   var isGameStarted = false
 
-  lazy val players: Map[String, Player] = users map {case x => x -> randomRole()(x)} toMap
+  lazy val players: Map[String, GameCharacter] = users.toList zip GameCharacter.genRoles(users.toList) toMap
 
   override def receive = {
     case NewUser(username) =>
@@ -58,26 +54,8 @@ class GameRoom extends PersistentActor {
       }
   }
 
-  def existingRoles(): Set[PlayerRole] = {
-    players.map{case (x:String, y:PlayerRole) => y}.toSet
-  }
-
   def startGame() = {
     isGameStarted = true
-  }
-
-  def randomRole(): PlayerRole = {
-    possibleRoles.toList(rand.nextInt(possibleRoles.size))
-  }
-
-  def almostRandomRole: PlayerRole = {
-    val tentativeRole = randomRole()
-    val freeRoles = possibleRoles -- existingRoles()
-    if (freeRoles.contains(tentativeRole)) {
-      tentativeRole
-    } else {
-      freeRoles.toList(rand.nextInt(freeRoles.size))
-    }
   }
 
   override def receiveRecover: Receive = {
@@ -91,41 +69,12 @@ class GameRoom extends PersistentActor {
   override def persistenceId: String = "1"
 }
 
-sealed trait PlayerRole {
-  val name: String
-  def apply(username: String): Player
-}
-
-case object Cat extends PlayerRole {
-  val name = "Cat"
-  def apply(username: String): Player = CatPlayer(username)
-}
-case object Mouse extends PlayerRole {
-  val name = "Mouse"
-  def apply(username: String): Player = MousePlayer(username)
-}
-
-abstract class Player(username: String) {
-  var hp: Int
-  val role: PlayerRole
-}
-
-case class MousePlayer(username: String) extends Player(username) {
-  override var hp: Int = 1
-  override val role: PlayerRole = Mouse
-}
-
-case class CatPlayer(username: String) extends Player(username) {
-  override var hp: Int = 9
-  override val role: PlayerRole = Cat
-}
-
 
 
 case class Join(username: String)
-case class Quit(user: Player)
-case class Talk(user: Player, text: String)
-case class NotifyJoin(user: Player)
+case class Quit(user: GameCharacter)
+case class Talk(user: GameCharacter, text: String)
+case class NotifyJoin(user: GameCharacter)
 
-case class Connected(user: Player, enumerator:Enumerator[JsValue])
+case class Connected(user: GameCharacter, enumerator:Enumerator[JsValue])
 case class CannotConnect(msg: String)
