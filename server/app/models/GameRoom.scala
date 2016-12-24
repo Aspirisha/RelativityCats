@@ -26,7 +26,7 @@ class GameRoom extends PersistentActor {
 
   implicit val timeout = Timeout(1 second)
 
-  val worldSize = 40
+  val worldSize = 20
   val users = MutableSet.empty[String]
   val userToRef = MutableMap.empty[String, ActorRef]
   var isGameStarted = false
@@ -59,6 +59,8 @@ class GameRoom extends PersistentActor {
 
   def startGame() = {
     isGameStarted = true
+    Logger.debug(s"players are ${players}")
+    Logger.debug(s"playerviews are ${playerViews}")
     players zip playerViews foreach {
       case (p, v) => userToRef(p.username) ! NotifyGameStart(v)
     }

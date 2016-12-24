@@ -3,10 +3,10 @@ package shared.models
 /**
   * Created by andy on 12/19/16.
   */
+import com.outr.scribe.Logging
 import com.uniformlyrandom.jello.JelloValue.{JelloArray, JelloNumber, JelloObject}
 import com.uniformlyrandom.jello.{JelloFormat, JelloReader, JelloValue, JelloWriter}
 import shared.models.Maze.RoadMap
-import upickle.Js
 
 import scala.annotation.tailrec
 import scala.util.{Random, Try}
@@ -24,7 +24,8 @@ object Maze {
   }
 
   case class Cell(name: String) {
-    def empty = name == "W" || name == "E"
+    def empty = name == " "
+    override def toString = name
   }
 
   def isValidPos(p: Vector2, size: Int): Boolean = {
@@ -54,10 +55,7 @@ object Maze {
     val size = raw.length
 
     def apply(p: Vector2) = {
-      if (p.x <= 0
-        || p.x >= size - 1
-        || p.y <= 0
-        || p.y >= size - 1)
+      if (!isValidPos(p, size))
         Cell.empty
       else
         raw(p.y)(p.x)
@@ -97,7 +95,7 @@ object Maze {
 
 }
 
-class Maze(var size: Int, actors: Int) {
+class Maze(var size: Int, actors: Int) extends Logging  {
   import Maze._
 
   import scala.collection.mutable.{Map => MutableMap}
@@ -120,8 +118,12 @@ class Maze(var size: Int, actors: Int) {
 
   def right(p: Vector2): Vector2 = p + Vector2.unitX
 
+  def isOnBound(p: Vector2) = p.x == 0|| p.x == size - 1 || p.y == 0 || p.y == size - 1
+
   private def doubleStep(p: Vector2, f: Vector2 => Vector2): Boolean = {
-    if (!roadmap(f(p)).empty && !roadmap(f(f(p))).empty) {
+    def canPutEmpty(p:Vector2) = !isOnBound(p) && isValidPos(p, size) && !roadmap(p).empty
+
+    if (canPutEmpty(f(p)) && canPutEmpty(f(f(p)))) {
       roadmap update(f(p), Cell.empty)
       roadmap update(f(f(p)), Cell.empty)
       true
@@ -131,6 +133,13 @@ class Maze(var size: Int, actors: Int) {
   }
 
   val possibleMoves = List(up(_: Vector2), down(_: Vector2), left(_: Vector2), right(_: Vector2))
+  private def startPath(start: Vector2): Unit = {
+    for (direction <- Random.shuffle(possibleMoves)) {
+      if (doubleStep(start, direction))
+        computePath(direction(start))
+    }
+  }
+
   private def computePath(p: Vector2) {
     for (direction <- Random.shuffle(possibleMoves)) {
       if (doubleStep(p, direction))
@@ -142,18 +151,19 @@ class Maze(var size: Int, actors: Int) {
     // we don't want even coordinates since then maze has fat walls
     def validator(v: Int) = if (v % 2 == 1) v else v - 1
     val rawExit = {
-      val res = (Random.shuffle(List(0, size)).head, validator(1 + Random.nextInt(size - 2)))
+      val res = (Random.shuffle(List(0, size - 1)).head, validator(1 + Random.nextInt(size - 2)))
       if (Random.nextBoolean()) res.swap else res
     }
     rawExit
   }
 
-  computePath(exit)
+  startPath(exit)
   roadmap.update(exit, Cell.exit)
 
   @tailrec
   private def addCharacter(character: Cell): MazeView = {
     val p = (Random.nextInt(size), Random.nextInt(size))
+    logger.info(s"Try to add character ${character} to ${p}")
     if (roadmap(p) empty) {
       roadmap.update(p, character)
       MazeView(size, p, character)
@@ -161,6 +171,7 @@ class Maze(var size: Int, actors: Int) {
   }
 
   def addCharacters(players: List[GameCharacter]): List[MazeView] = {
+    logger.info("Adding characters")
     players map {
       case Mouse(_) => addCharacter(Cell.mouse)
       case Cat(_) => addCharacter(Cell.cat)
