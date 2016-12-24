@@ -6,7 +6,7 @@ import be.doeraene.spickling.PicklerRegistry
 import org.scalajs.dom
 import org.scalajs.dom._
 import play.api.libs.json.{JsValue, Json}
-import shared.{ClientMessage, Message, RoomStatMessage, SharedMessages}
+import shared._
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSExport
@@ -101,10 +101,24 @@ object RoomFrontend extends js.JSApp {
     val chat = new WebSocket(getWebsocketUri(dom.document, name))
 
     chat.onmessage = { (event: MessageEvent) ⇒
+      g.console.debug(s"received room state ${event.data.toString}")
       val msg = Message.deserialize(event.data.toString)
       g.console.debug(s"received room state ${msg}")
       msg match {
-        case msg:RoomStatMessage => g.console.debug(s"received room state ${msg.data}")
+        case msg:RoomStatMessage =>
+          val userList = dom.document.getElementById("users").asInstanceOf[html.UList]
+          val len = userList.childNodes.length
+          for (i <- 1 to len)
+            userList.removeChild(userList.childNodes.item(0))
+          msg.data.users foreach {
+            case name =>
+              val li = dom.document.createElement("li")
+              val element = li.appendChild(dom.document.createTextNode(name))
+              userList.appendChild(li)
+          }
+          g.console.debug(s"received room state ${msg.data}")
+        case msg: NotifyGameStart =>
+          g.console.debug(s"received game start ${msg.data}")
       }
 
     }

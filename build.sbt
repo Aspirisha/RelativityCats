@@ -38,7 +38,8 @@ lazy val client = (project in file("client")).settings(
 lazy val shared = (crossProject.crossType(CrossType.Pure) in file("shared")).
   settings(scalaVersion := scalaV,
     libraryDependencies ++= Seq("com.typesafe.play" %% "play" % playVersion,
-                                "com.lihaoyi" %%% "upickle" % "0.4.3")).
+                                "com.lihaoyi" %%% "upickle" % "0.4.3",
+                                "com.uniformlyrandom" %%% "jello" % "0.3.0")).
   jsConfigure(_ enablePlugins ScalaJSWeb)
 
 lazy val sharedJvm = shared.jvm

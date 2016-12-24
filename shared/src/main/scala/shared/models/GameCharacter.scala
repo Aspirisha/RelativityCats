@@ -1,4 +1,4 @@
-package models
+package shared.models
 
 import scala.util.Random
 
@@ -6,8 +6,9 @@ import scala.util.Random
   * Created by andy on 12/23/16.
   */
 
-abstract class GameCharacter(username: String) {
+abstract class GameCharacter {
   var hp: Int
+  val username: String
 }
 
 object GameCharacter {
@@ -35,10 +36,10 @@ object Cat {
 }
 
 
-case class Mouse(username: String) extends GameCharacter(username) {
+case class Mouse(username: String) extends GameCharacter {
   override var hp: Int = 1
 }
 
-case class Cat(username: String) extends GameCharacter(username) {
+case class Cat(username: String) extends GameCharacter {
   override var hp: Int = 9
 }

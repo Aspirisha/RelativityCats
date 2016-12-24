@@ -3,6 +3,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import akka.pattern.ask
 import models._
 import play.api.libs.iteratee.{Enumerator, Iteratee}
+import shared.models.Maze
 
 import scala.concurrent.duration.Duration
 

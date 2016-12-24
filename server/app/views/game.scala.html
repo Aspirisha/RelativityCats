@@ -4,15 +4,13 @@
 <link rel="stylesheet" media="screen" href="@routes.Assets.versioned("stylesheets/main.css")">
 @main("Play with Scala.js") {
 <h2>Play and Scala.js share a same message</h2>
-<div class="nav">
-    <ul>
-        <li><a href="#">London</a></li>
-        <li><a href="#">Paris</a></li>
-        <li><a href="#">Tokyo</a></li>
+<nav>
+    <h3>Players in room</h3>
+    <ul id="users">
     </ul>
-</div>
-<div class="field">
-    <canvas style="display: block" id="canvas" width="1024" height="1024"></canvas>
+</nav>
+<div>
+<canvas class="field" id="canvas" width="1024" height="768"></canvas>
 </div>
 <script type="text/javascript" src="/assets/client-fastopt.js"></script>
 <script>

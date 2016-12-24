@@ -6,7 +6,8 @@ import akka.util.Timeout
 import play.Logger
 import play.api.libs.iteratee._
 import play.api.libs.json._
-import shared.{ClientMessage, RoomStatMessage, RoomState}
+import shared.models.{GameCharacter, Maze}
+import shared.{ClientMessage, NotifyGameStart, RoomStatMessage, RoomState}
 
 import scala.concurrent.duration._
 import scala.util.Random
@@ -25,11 +26,13 @@ class GameRoom extends PersistentActor {
 
   implicit val timeout = Timeout(1 second)
 
+  val worldSize = 40
   val users = MutableSet.empty[String]
   val userToRef = MutableMap.empty[String, ActorRef]
   var isGameStarted = false
-
-  lazy val players: Map[String, GameCharacter] = users.toList zip GameCharacter.genRoles(users.toList) toMap
+  lazy val world: Maze = Maze(worldSize, users.size)
+  lazy val players: List[GameCharacter] = Random.shuffle(GameCharacter.genRoles(users.toList))
+  lazy val playerViews = world.addCharacters(players)
 
   override def receive = {
     case NewUser(username) =>
@@ -56,6 +59,9 @@ class GameRoom extends PersistentActor {
 
   def startGame() = {
     isGameStarted = true
+    players zip playerViews foreach {
+      case (p, v) => userToRef(p.username) ! NotifyGameStart(v)
+    }
   }
 
   override def receiveRecover: Receive = {
@@ -68,13 +74,3 @@ class GameRoom extends PersistentActor {
 
   override def persistenceId: String = "1"
 }
-
-
-
-case class Join(username: String)
-case class Quit(user: GameCharacter)
-case class Talk(user: GameCharacter, text: String)
-case class NotifyJoin(user: GameCharacter)
-
-case class Connected(user: GameCharacter, enumerator:Enumerator[JsValue])
-case class CannotConnect(msg: String)
