@@ -97,6 +97,8 @@ class Application @Inject()(val messagesApi: MessagesApi,  materializer: Materia
       case x: ServerMessage =>
         Logger.debug(s"ServerMessage: $x")
         out ! Json.parse(serialize(x))
+      case x: TryMove =>
+        gameManager ! (x, name)
     }
 
     def handleMessage(msg: ClientMessage): JsValue = {

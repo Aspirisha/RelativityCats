@@ -1,5 +1,7 @@
 package example
 
+import java.util.concurrent.atomic.AtomicInteger
+
 import akka.actor.Actor.Receive
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 import org.scalajs.dom
@@ -29,16 +31,27 @@ object RoomFrontend extends js.JSApp {
       g.console.debug(accesedImage)
       accesedImage
     }
+
+    val imagesNumberGCD = 2
+
+    def apply(img: String): Sprite = {
+      Sprite(List(img))
+    }
   }
 
-  case class Sprite(imgname: String) {
-    val image = {
+  case class Sprite(imgnames: List[String]) {
+    var loaded = new AtomicInteger(0)
+    val images = imgnames map { case imgname =>
       val image = dom.document.createElement("img").asInstanceOf[HTMLImageElement]
       image.src = Sprite.getImageUri(dom.document, imgname)
+      image.onload = (x: dom.Event) => {
+        loaded.incrementAndGet()
+      }
       image
     }
 
-    def draw(pos: Vector2, ctx: dom.CanvasRenderingContext2D): Unit = {
+    def draw(pos: Vector2, ctx: dom.CanvasRenderingContext2D, timer: Int): Unit = {
+      val image = images(timer % images.size)
       ctx.drawImage(
         image,
         0,
@@ -55,13 +68,14 @@ object RoomFrontend extends js.JSApp {
       ctx.rect(pos.x * cellSize.x, pos.y * cellSize.y,
         (pos.x + 1) * cellSize.x - 1, (pos.y + 1) * cellSize.y - 1)
       ctx.stroke()
-      ctx.stroke()
     }
   }
 
-  lazy val catSprite = Sprite("cat1.png")
-  lazy val mouseSprite = Sprite("mouse1.png")
-  lazy val unknownSprite = Sprite("unknown1.png")
+  val catSprite = Sprite(List("cat1.png", "cat2.png"))
+  val mouseSprite = Sprite(List("mouse1.png", "mouse2.png"))
+  val unknownSprite = Sprite("unknown1.png")
+  val floorSprite = Sprite("floor.png")
+  val wallSprite = Sprite("wall.png")
 
   object Render {
     def props(ctx: dom.CanvasRenderingContext2D): Props = Props(new Render(ctx))
@@ -71,12 +85,21 @@ object RoomFrontend extends js.JSApp {
 
   class Render(ctx: dom.CanvasRenderingContext2D) extends Actor {
     var maze: Option[MazeView] = None
+    var timer = 0
     g.console.debug(s"Render creation")
     def drawCell(pos: Vector2, cell: Cell): Unit = {
       cell match {
-        case Cell.unknown => unknownSprite.draw(pos, ctx)
-        case Cell.cat => catSprite.draw(pos, ctx)
-        case Cell.mouse => mouseSprite.draw(pos, ctx)
+        case Cell.unknown =>
+          g.console.debug("Drawing unknown")
+          unknownSprite.draw(pos, ctx, timer)
+        case Cell.cat =>
+          floorSprite.draw(pos, ctx, timer)
+          catSprite.draw(pos, ctx, timer)
+        case Cell.mouse =>
+          floorSprite.draw(pos, ctx, timer)
+          mouseSprite.draw(pos, ctx, timer)
+        case Cell.wall => wallSprite.draw(pos, ctx, timer)
+        case Cell.empty => floorSprite.draw(pos, ctx, timer)
       }
     }
 
@@ -105,12 +128,22 @@ object RoomFrontend extends js.JSApp {
 
     override def receive: Receive = {
       case Render.RedrawMessage =>
-        redraw
+        for (m <- maze) {
+          drawCell(m.position, m.visibleRoadMap(m.position))
+        }
+        timer += 1
+        if (timer == Sprite.imagesNumberGCD)
+          timer = 0
       case msg: NotifyGameStart =>
         maze = Some(msg.data)
         g.console.debug(s"Got the maze ${maze}")
         cellSize = Vector2(canvas.width / msg.data.size, canvas.height / msg.data.size)
         redraw
+      case TryMoveResult(event, delta, _) =>
+        maze match {
+          case None =>
+          case Some(m) =>
+        }
     }
   }
 
@@ -149,10 +182,15 @@ object RoomFrontend extends js.JSApp {
         case msg: NotifyGameStart =>
           context.actorSelection(s"/user/render-$name") ! msg
           g.console.debug(s"received game start ${msg.data}")
+        case msg: TryMoveResult =>
+          g.console.debug(s"received try move result from server: ${msg.result}")
       }
     }
 
     override def receive: Receive = {
+      case x:TryMove =>
+        chat.send(Message.serialize(x))
+        g.console.debug(s"sent try move message ${x.delta}")
       case _ => //sender()
     }
   }
@@ -170,7 +208,7 @@ object RoomFrontend extends js.JSApp {
     val corners = Seq(Point(255, 255), Point(0, 255), Point(128, 0))
 
     g.console.log(s"name was: ${dom.document.getElementById("scalajsShoutOut").textContent}")
-    dom.document.getElementById("scalajsShoutOut").textContent = SharedMessages.itWorks
+    dom.document.getElementById("scalajsShoutOut").textContent = "dddd"
     g.console.log(s"elements: ${dom.document.getElementsByName("div")}")
 
 
@@ -188,6 +226,11 @@ object RoomFrontend extends js.JSApp {
     canvas.onmouseup =
       (e: dom.MouseEvent) => down = false
 
+    canvas.onkeydown = (e: dom.KeyboardEvent) => {
+      e.key match {
+        case dom.ext.KeyValue.ArrowDown => socket ! TryMove((0, -1))
+      }
+    }
     canvas.onmousemove = {
       (e: dom.MouseEvent) =>
         val rect =
@@ -204,7 +247,8 @@ object RoomFrontend extends js.JSApp {
       ctx.fillRect(0, 0, canvas.width, canvas.height)
     }
 
-    dom.window.setInterval(() => render ! Render.RedrawMessage, 50)
+    g.console.debug("HERE!")
+    dom.window.setInterval(() => render ! Render.RedrawMessage, 1000)
   }
 
 

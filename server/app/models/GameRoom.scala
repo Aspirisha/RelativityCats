@@ -7,7 +7,7 @@ import play.Logger
 import play.api.libs.iteratee._
 import play.api.libs.json._
 import shared.models.{GameCharacter, Maze}
-import shared.{ClientMessage, NotifyGameStart, RoomStatMessage, RoomState}
+import shared._
 
 import scala.concurrent.duration._
 import scala.util.Random
@@ -33,6 +33,7 @@ class GameRoom extends PersistentActor {
   lazy val world: Maze = Maze(worldSize, users.size)
   lazy val players: List[GameCharacter] = Random.shuffle(GameCharacter.genRoles(users.toList))
   lazy val playerViews = world.addCharacters(players)
+  var currentPlayer = 0
 
   override def receive = {
     case NewUser(username) =>
@@ -55,12 +56,21 @@ class GameRoom extends PersistentActor {
       if (userToRef.size == usersToStartGame && !isGameStarted) {
         startGame()
       }
+    case (msg: TryMove, username: String) =>
+      if (players(currentPlayer).username != username)
+        sender ! TryMoveResult(Maze.Event.invalidStep, msg.delta)
+      else {
+        val event = world.renderCharacterStep(playerViews(currentPlayer), msg.delta)
+        sender ! TryMoveResult(event, msg.delta)
+      }
+    case _ =>
   }
 
   def startGame() = {
     isGameStarted = true
     Logger.debug(s"players are ${players}")
     Logger.debug(s"playerviews are ${playerViews}")
+    world.renderTimeStep(playerViews)
     players zip playerViews foreach {
       case (p, v) => userToRef(p.username) ! NotifyGameStart(v)
     }

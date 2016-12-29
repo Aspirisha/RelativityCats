@@ -32,14 +32,17 @@ object Maze {
     p.x >= 0 && p.y >= 0 && p.x < size && p.y < size
   }
 
-  sealed trait Event
+  sealed case class Event(descr: String)
 
-  case object InvalidStep extends Event
-  case object MouseEscape extends Event
-  case object Escape extends Event
-  case object MouseSteppedIntoCat extends Event
-  case object CatCaughtMouse extends Event
-  case object JustStep extends Event
+  object Event {
+    val invalidStep = Event("invalid_step")
+    val escape = Event("escape")
+    val mouseSteppedIntoCat = Event("mouse_stepped_into_cat")
+    val catCaughtMouse = Event("cat_caught_mouse")
+    val justStep = Event("just_step")
+
+    implicit val fmt: JelloFormat[Event] = JelloFormat.format[Event]
+  }
 
   def apply(size: Int, actorsNumber: Int): Maze = {
     val goodSize = if (size < 3) 3
@@ -179,14 +182,11 @@ class Maze(var size: Int, actors: Int) extends Logging  {
   }
 
   def renderTimeStep(views: List[MazeView]) = {
-    for (i <- size - 2 to 0 by -1) {
-      visibilityMap = visibilityMap.last :: visibilityMap.takeRight(size - 1)
-      for {i <- 0 until size
-           j <- 0 until size} {
-        visibilityMap.head.update((i, j), roadmap(i, j))
-      }
+    visibilityMap = visibilityMap.last :: visibilityMap.take(size - 1)
+    for {i <- 0 until size
+         j <- 0 until size} {
+      visibilityMap.head.update((i, j), roadmap(i, j))
     }
-
     views foreach { case v => v.render(visibilityMap) }
   }
 
@@ -194,28 +194,30 @@ class Maze(var size: Int, actors: Int) extends Logging  {
     isValidPos(to, size) && (to - from).magnitude == 1
   }
 
-  def renderCharacterStep(view: MazeView, to: Vector2): Event = {
+  def renderCharacterStep(view: MazeView, delta: Vector2): Event = {
+    val to = view.position + delta
+
     if (!validateStep(view.position, to))
-      return InvalidStep
+      return Event.invalidStep
 
     (roadmap(view.position), roadmap(to)) match {
       case (_, Cell.empty) =>
         roadmap update(to, roadmap(view.position))
         roadmap update(view.position, Cell.empty)
         view.performStep(to, visibilityMap)
-        JustStep
+        Event.justStep
       case (Cell.mouse, Cell.cat) =>
         roadmap update(view.position, Cell.empty)
-        MouseSteppedIntoCat
+        Event.mouseSteppedIntoCat
       case (Cell.cat, Cell.mouse) =>
         roadmap update(to, roadmap(view.position))
         roadmap update(view.position, Cell.empty)
         view.performStep(to, visibilityMap)
-        CatCaughtMouse
+        Event.catCaughtMouse
       case (_, Cell.exit) =>
         roadmap update(view.position, Cell.empty)
-        Escape
-      case (_, _) => InvalidStep
+        Event.escape
+      case (_, _) => Event.invalidStep
     }
   }
 }
@@ -276,13 +278,16 @@ case class MazeView(size: Int, var position: Vector2,
     def bfsUpdate(dist: Int, step: Vector2): Unit = {
       val pos = position + dist * step
       if (isValidPos(pos, size)) {
-        visibleRoadMap update(pos, visibilityMap(dist)(pos))
+        visibleRoadMap update(pos, visibilityMap(dist - 1)(pos))
         staticRoadMap(pos) match {
           case Cell.unknown =>
-            val newStaticValue = visibleRoadMap(pos) match {
-              case Cell.wall => Cell.wall
-              case Cell.exit => Cell.exit
-              case _ => Cell.empty
+            val newStaticValue = {
+              visibleRoadMap(pos) match {
+                case Cell.wall => Cell.wall
+                case Cell.exit => Cell.exit
+                case Cell.unknown => Cell.unknown
+                case _ => Cell.empty
+              }
             }
             staticRoadMap update(pos, newStaticValue)
         }
