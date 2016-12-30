@@ -72,7 +72,7 @@ class GameRoom extends PersistentActor {
     Logger.debug(s"playerviews are ${playerViews}")
     world.renderTimeStep(playerViews)
     players zip playerViews foreach {
-      case (p, v) => userToRef(p.username) ! NotifyGameStart(v)
+      case (p, v) => userToRef(p.username) ! NotifyGameStart(v, players, currentPlayer)
     }
   }
 

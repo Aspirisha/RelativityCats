@@ -1,14 +1,19 @@
 package shared.models
 
-import scala.util.Random
+import com.uniformlyrandom.jello.JelloValue.{JelloNumber, JelloObject, JelloString}
+import com.uniformlyrandom.jello.{JelloReader, JelloValue, JelloWriter}
+
+import scala.util.{Random, Try}
 
 /**
   * Created by andy on 12/23/16.
   */
 
-abstract class GameCharacter {
+abstract sealed class GameCharacter {
   var hp: Int
   val username: String
+
+  def charString: String
 }
 
 object GameCharacter {
@@ -25,6 +30,32 @@ object GameCharacter {
       case _ => Cat(username)
     }
   }
+
+  implicit val reader: JelloReader[GameCharacter] = {
+    new JelloReader[GameCharacter] {
+      override def read(jelloValue: JelloValue): Try[GameCharacter] = {
+        jelloValue match {
+          case p: JelloObject =>
+            for {hp <- Try(p.map("hp").asInstanceOf[JelloNumber].v.toInt)
+                 name <- Try(p.map("name").asInstanceOf[JelloString].v.toString)
+                 char <- Try(p.map("char").asInstanceOf[JelloString].v.toString)}
+              yield char match {
+                case "cat" => Cat(name, hp)
+                case "mouse" => Mouse(name, hp)
+              }
+        }
+      }
+    }
+  }
+
+  implicit val writer: JelloWriter[GameCharacter] = {
+    new JelloWriter[GameCharacter] {
+      override def write(v: GameCharacter): JelloValue = {
+        JelloObject(Map("hp" -> JelloNumber(v.hp), "name" -> JelloString(v.username),
+          "char" -> JelloString(v.charString)))
+      }
+    }
+  }
 }
 
 object Mouse {
@@ -36,10 +67,10 @@ object Cat {
 }
 
 
-case class Mouse(username: String) extends GameCharacter {
-  override var hp: Int = 1
+case class Mouse(username: String, var hp: Int = 1) extends GameCharacter {
+  def charString = "mouse"
 }
 
-case class Cat(username: String) extends GameCharacter {
-  override var hp: Int = 9
+case class Cat(username: String, var hp: Int = 9) extends GameCharacter {
+  def charString = "cat"
 }

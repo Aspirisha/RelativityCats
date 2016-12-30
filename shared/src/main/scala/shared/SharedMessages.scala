@@ -4,7 +4,7 @@ import java.util.Calendar
 
 import com.uniformlyrandom.jello.JelloValue.{JelloObject, JelloString}
 import com.uniformlyrandom.jello.{JelloFormat, JelloJson, JelloValue}
-import shared.models.{Maze, Vector2}
+import shared.models.{GameCharacter, Maze, Vector2}
 
 object LoginResponseMessage {
  // implicit val format = Json.format[LoginResponseMessage]
@@ -33,7 +33,7 @@ object ServerMessage {
 // server to client messages
 case class RoomStatMessage(data: RoomState, messageType: String = "room_stat") extends ServerMessage
 
-case class NotifyGameStart(data: models.MazeView, messageType: String = "start_game") extends ServerMessage
+case class NotifyGameStart(data: models.MazeView, players: List[GameCharacter], activeUser: Int, messageType: String = "start_game") extends ServerMessage
 object NotifyGameStart {
   implicit val fmt: JelloFormat[NotifyGameStart] = JelloFormat.format[NotifyGameStart]
 }

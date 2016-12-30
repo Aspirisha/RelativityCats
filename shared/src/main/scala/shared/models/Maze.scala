@@ -176,8 +176,8 @@ class Maze(var size: Int, actors: Int) extends Logging  {
   def addCharacters(players: List[GameCharacter]): List[MazeView] = {
     logger.info("Adding characters")
     players map {
-      case Mouse(_) => addCharacter(Cell.mouse)
-      case Cat(_) => addCharacter(Cell.cat)
+      case x: Mouse => addCharacter(Cell.mouse)
+      case x: Cat => addCharacter(Cell.cat)
     }
   }
 

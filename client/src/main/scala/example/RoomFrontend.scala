@@ -9,7 +9,7 @@ import org.scalajs.dom._
 import org.scalajs.dom.raw.HTMLImageElement
 import shared._
 import shared.models.Maze.Cell
-import shared.models.{MazeView, Vector2}
+import shared.models.{GameCharacter, MazeView, Vector2}
 
 import scala.scalajs.js
 import scala.scalajs.js.Dynamic.{global => g}
@@ -78,13 +78,15 @@ object RoomFrontend extends js.JSApp {
   val wallSprite = Sprite("wall.png")
 
   object Render {
-    def props(ctx: dom.CanvasRenderingContext2D): Props = Props(new Render(ctx))
+    def props(ctx: dom.CanvasRenderingContext2D, username: String): Props = Props(new Render(ctx, username))
 
     case object RedrawMessage
   }
 
-  class Render(ctx: dom.CanvasRenderingContext2D) extends Actor {
+  class Render(ctx: dom.CanvasRenderingContext2D, username: String) extends Actor {
     var maze: Option[MazeView] = None
+    var currentPlayer = -1
+    var players = List.empty[GameCharacter]
     var timer = 0
     g.console.debug(s"Render creation")
     def drawCell(pos: Vector2, cell: Cell): Unit = {
@@ -112,30 +114,22 @@ object RoomFrontend extends js.JSApp {
           }
         case None =>
       }
-
-      /*if (count % 3000 == 0) clear()
-    count += 1
-    p = (p + corners(Random.nextInt(3))) / 2
-
-    val height = 512.0 / (255 + p.y)
-    val r = (p.x * height).toInt
-    val g = ((255 - p.x) * height).toInt
-    val b = p.y
-    ctx.fillStyle = s"rgb($g, $r, $b)"
-
-    ctx.fillRect(p.x, p.y, 1, 1)*/
     }
 
     override def receive: Receive = {
       case Render.RedrawMessage =>
-        for (m <- maze) {
-          drawCell(m.position, m.visibleRoadMap(m.position))
+        if (players(currentPlayer).username == username) {
+          for (m <- maze) {
+            drawCell(m.position, m.visibleRoadMap(m.position))
+          }
+          timer += 1
+          if (timer == Sprite.imagesNumberGCD)
+            timer = 0
         }
-        timer += 1
-        if (timer == Sprite.imagesNumberGCD)
-          timer = 0
       case msg: NotifyGameStart =>
         maze = Some(msg.data)
+        currentPlayer = msg.activeUser
+        players = msg.players
         g.console.debug(s"Got the maze ${maze}")
         cellSize = Vector2(canvas.width / msg.data.size, canvas.height / msg.data.size)
         redraw
@@ -151,8 +145,10 @@ object RoomFrontend extends js.JSApp {
     def props(name: String): Props = Props(new SocketActor(name))
   }
 
-
   class SocketActor(name: String) extends Actor {
+    var players = List.empty[GameCharacter]
+    val render = context.actorSelection(s"/user/render-$name")
+    val inputController = context.actorSelection(s"/user/input-$name")
 
     def getWebsocketUri(document: Document, nameOfChatParticipant: String): String = {
       val wsProtocol = if (dom.document.location.protocol == "https:") "wss" else "ws"
@@ -180,7 +176,9 @@ object RoomFrontend extends js.JSApp {
           }
           g.console.debug(s"received room state ${msg.data}")
         case msg: NotifyGameStart =>
-          context.actorSelection(s"/user/render-$name") ! msg
+          players = msg.players
+          render ! msg
+          inputController ! InputController.ActivePlayerMessage(players(msg.activeUser).username)
           g.console.debug(s"received game start ${msg.data}")
         case msg: TryMoveResult =>
           g.console.debug(s"received try move result from server: ${msg.result}")
@@ -195,17 +193,46 @@ object RoomFrontend extends js.JSApp {
     }
   }
 
+  object InputController {
+    def props(canvas: html.Canvas, username: String): Props = Props(new InputController(canvas, username))
+
+    case class ActivePlayerMessage(activePlayer: String)
+  }
+
+  class InputController(canvas: html.Canvas, username: String) extends Actor {
+    var activeUser: String = ""
+    val socket = context.actorSelection(s"/user/socket-$username")
+
+    import InputController._
+    override def receive: Receive = {
+      case msg: ActivePlayerMessage =>
+        activeUser = msg.activePlayer
+        g.console.debug(s"Got active player: $activeUser")
+      case _ =>
+    }
+
+    canvas.onkeydown = (e: dom.KeyboardEvent) => {
+      g.console.debug("user pressed some key")
+      if (activeUser == username) {
+        e.key match {
+          case dom.ext.KeyValue.ArrowDown => socket ! TryMove((0, -1))
+          case dom.ext.KeyValue.ArrowLeft => socket ! TryMove((-1, 0))
+          case dom.ext.KeyValue.ArrowUp => socket ! TryMove((0, 1))
+          case dom.ext.KeyValue.ArrowRight => socket ! TryMove((1, 0))
+        }
+      }
+    }
+  }
+
   @JSExport
   def main(): Unit = {
     val ctx = canvas.getContext("2d").asInstanceOf[dom.CanvasRenderingContext2D]
     val username: String = dom.document.getElementById("scalajsShoutOut").textContent
     val system = ActorSystem(s"someSystem-$username")
-    val render = system.actorOf(Render.props(ctx), s"render-$username")
+    val render = system.actorOf(Render.props(ctx, username), s"render-$username")
     val socket = system.actorOf(SocketActor.props(username), s"socket-$username")
+    val inputController = system.actorOf(InputController.props(canvas, username), s"input-$username")
     var down = false
-    var count = 0
-    var p = Point(0, 0)
-    val corners = Seq(Point(255, 255), Point(0, 255), Point(128, 0))
 
     g.console.log(s"name was: ${dom.document.getElementById("scalajsShoutOut").textContent}")
     dom.document.getElementById("scalajsShoutOut").textContent = "dddd"
@@ -226,11 +253,6 @@ object RoomFrontend extends js.JSApp {
     canvas.onmouseup =
       (e: dom.MouseEvent) => down = false
 
-    canvas.onkeydown = (e: dom.KeyboardEvent) => {
-      e.key match {
-        case dom.ext.KeyValue.ArrowDown => socket ! TryMove((0, -1))
-      }
-    }
     canvas.onmousemove = {
       (e: dom.MouseEvent) =>
         val rect =

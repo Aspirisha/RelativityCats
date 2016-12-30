@@ -1,38 +1,28 @@
 package controllers
 
-import java.util.Calendar
-
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
-import akka.cluster.pubsub.{DistributedPubSub, DistributedPubSubMediator}
 import akka.pattern.ask
-import akka.stream.{Materializer, OverflowStrategy}
-import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
+import akka.stream.Materializer
 import akka.util.Timeout
 import com.google.inject.Inject
 import models.GameRoom.{NewUser, ValidateLoggedIn}
 import models.{GameRoom, LoginForm}
-import play.api.data.Form
+import play.Logger
+import play.api.i18n.MessagesApi
+import play.api.libs.json._
+import play.api.libs.streams.ActorFlow
 import play.api.mvc._
+import shared.Message._
 import shared._
-import play.api.Play._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import play.api.data._
-import play.api.data.Forms._
-import play.Logger
-import play.api.i18n.MessagesApi
-import play.api.libs.streams.ActorFlow
-import play.api.libs.json._
-
 import scala.language.postfixOps
-import shared.Message._
-
-case class User(name: String)
 
 class Application @Inject()(val messagesApi: MessagesApi,  materializer: Materializer) extends Controller {
   import Application._
+
   import scala.collection.mutable.{Map => MutableMap}
 
   implicit val timeout = Timeout(20 second)
@@ -98,6 +88,7 @@ class Application @Inject()(val messagesApi: MessagesApi,  materializer: Materia
         Logger.debug(s"ServerMessage: $x")
         out ! Json.parse(serialize(x))
       case x: TryMove =>
+        Logger.debug(s"Received tryMove message: $x")
         gameManager ! (x, name)
     }
 
