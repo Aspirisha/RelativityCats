@@ -9,7 +9,7 @@ import org.scalajs.dom._
 import org.scalajs.dom.raw.HTMLImageElement
 import shared._
 import shared.models.Maze.Cell
-import shared.models.{GameCharacter, MazeView, Vector2}
+import shared.models.{GameCharacter, Maze, MazeView, Vector2}
 
 import scala.scalajs.js
 import scala.scalajs.js.Dynamic.{global => g}
@@ -85,7 +85,7 @@ object RoomFrontend extends js.JSApp {
 
   class Render(ctx: dom.CanvasRenderingContext2D, username: String) extends Actor {
     var maze: Option[MazeView] = None
-    var currentPlayer = -1
+    var currentPlayer = ""
     var players = List.empty[GameCharacter]
     var timer = 0
     g.console.debug(s"Render creation")
@@ -118,7 +118,7 @@ object RoomFrontend extends js.JSApp {
 
     override def receive: Receive = {
       case Render.RedrawMessage =>
-        if (players(currentPlayer).username == username) {
+        if (currentPlayer == username) {
           for (m <- maze) {
             drawCell(m.position, m.visibleRoadMap(m.position))
           }
@@ -128,15 +128,22 @@ object RoomFrontend extends js.JSApp {
         }
       case msg: NotifyGameStart =>
         maze = Some(msg.data)
-        currentPlayer = msg.activeUser
         players = msg.players
         g.console.debug(s"Got the maze ${maze}")
         cellSize = Vector2(canvas.width / msg.data.size, canvas.height / msg.data.size)
         redraw
+      case msg: NotifyActiveUser =>
+        currentPlayer = msg.activeUser
       case TryMoveResult(event, delta, _) =>
         maze match {
           case None =>
           case Some(m) =>
+            event match {
+              case Maze.Event.justStep =>
+                m.position += delta
+                redraw
+              case _ => g.console.debug("Implement me!")
+            }
         }
     }
   }
@@ -178,10 +185,14 @@ object RoomFrontend extends js.JSApp {
         case msg: NotifyGameStart =>
           players = msg.players
           render ! msg
-          inputController ! InputController.ActivePlayerMessage(players(msg.activeUser).username)
           g.console.debug(s"received game start ${msg.data}")
+        case msg: NotifyActiveUser =>
+          inputController ! msg
+          render ! msg
         case msg: TryMoveResult =>
           g.console.debug(s"received try move result from server: ${msg.result}")
+          render ! msg
+        case _ => g.console.debug(s"Received some message from server: $msg")
       }
     }
 
@@ -195,31 +206,27 @@ object RoomFrontend extends js.JSApp {
 
   object InputController {
     def props(canvas: html.Canvas, username: String): Props = Props(new InputController(canvas, username))
-
-    case class ActivePlayerMessage(activePlayer: String)
   }
 
   class InputController(canvas: html.Canvas, username: String) extends Actor {
     var activeUser: String = ""
     val socket = context.actorSelection(s"/user/socket-$username")
 
-    import InputController._
     override def receive: Receive = {
-      case msg: ActivePlayerMessage =>
-        activeUser = msg.activePlayer
+      case msg: NotifyActiveUser =>
+        activeUser = msg.activeUser
         g.console.debug(s"Got active player: $activeUser")
       case _ =>
     }
 
-    canvas.onkeydown = (e: dom.KeyboardEvent) => {
+    document.onkeydown = (e: dom.KeyboardEvent) => {
       g.console.debug("user pressed some key")
-      if (activeUser == username) {
-        e.key match {
-          case dom.ext.KeyValue.ArrowDown => socket ! TryMove((0, -1))
-          case dom.ext.KeyValue.ArrowLeft => socket ! TryMove((-1, 0))
-          case dom.ext.KeyValue.ArrowUp => socket ! TryMove((0, 1))
-          case dom.ext.KeyValue.ArrowRight => socket ! TryMove((1, 0))
-        }
+      e.key match {
+        case dom.ext.KeyValue.ArrowDown => socket ! TryMove((0, -1))
+        case dom.ext.KeyValue.ArrowLeft => socket ! TryMove((-1, 0))
+        case dom.ext.KeyValue.ArrowUp => socket ! TryMove((0, 1))
+        case dom.ext.KeyValue.ArrowRight => socket ! TryMove((1, 0))
+        case _ => g.console.debug(s"pressed key ${e.key} and arrow is ${dom.ext.KeyValue.ArrowDown}")
       }
     }
   }

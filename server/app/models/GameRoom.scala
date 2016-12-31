@@ -62,6 +62,21 @@ class GameRoom extends PersistentActor {
       else {
         val event = world.renderCharacterStep(playerViews(currentPlayer), msg.delta)
         sender ! TryMoveResult(event, msg.delta)
+        event match {
+          case justStep =>
+            currentPlayer += 1
+            if (currentPlayer == players.size) {
+              currentPlayer = 0
+              world.renderTimeStep(playerViews)
+              players zip playerViews foreach {
+                case (p, v) => userToRef(p.username) ! NotifyTimeStep(v)
+              }
+            }
+            players foreach {
+              case p => userToRef(p.username) ! NotifyActiveUser(players(currentPlayer).username)
+            }
+          case _ => Logger.debug("Unimplemented")
+        }
       }
     case _ =>
   }
@@ -72,7 +87,10 @@ class GameRoom extends PersistentActor {
     Logger.debug(s"playerviews are ${playerViews}")
     world.renderTimeStep(playerViews)
     players zip playerViews foreach {
-      case (p, v) => userToRef(p.username) ! NotifyGameStart(v, players, currentPlayer)
+      case (p, v) =>
+        val ref = userToRef(p.username)
+        ref ! NotifyGameStart(v, players)
+        ref ! NotifyActiveUser(players(currentPlayer).username)
     }
   }
 

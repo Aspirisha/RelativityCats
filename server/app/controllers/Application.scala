@@ -82,7 +82,8 @@ class Application @Inject()(val messagesApi: MessagesApi,  materializer: Materia
     def receive = {
       case request: JsValue =>
         deserialize(Json.stringify(request)) match {
-          case x: ClientMessage => out ! handleMessage(x)
+          case x: TryMove => gameManager ! x
+          case _ => Json.parse(ClientErrorMessage("Unsupported message type"))
         }
       case x: ServerMessage =>
         Logger.debug(s"ServerMessage: $x")
@@ -90,12 +91,6 @@ class Application @Inject()(val messagesApi: MessagesApi,  materializer: Materia
       case x: TryMove =>
         Logger.debug(s"Received tryMove message: $x")
         gameManager ! (x, name)
-    }
-
-    def handleMessage(msg: ClientMessage): JsValue = {
-      msg match {
-        case _ => Json.parse(ClientErrorMessage("Unsupported message type"))
-      }
     }
   }
 
