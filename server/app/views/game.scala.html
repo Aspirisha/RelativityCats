@@ -1,6 +1,9 @@
 @(name: String)
 
 <link rel="stylesheet" media="screen" href="@routes.Assets.versioned("stylesheets/main.css")">
+<script>
+    document.cookie = "@name"
+</script>
 @main("Cats & Mice") {
 <nav>
     <h3>Players in room</h3>
@@ -11,8 +14,4 @@
 <canvas class="field" id="canvas" width="1024" height="768"></canvas>
 </div>
 <script type="text/javascript" src="/assets/client-fastopt.js"></script>
-
-<ul>
-  <li>Scala.js shouts out: <em id="scalajsShoutOut">@name</em></li>
-</ul>
 }

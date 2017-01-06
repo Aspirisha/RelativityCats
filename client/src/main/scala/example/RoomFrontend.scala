@@ -234,49 +234,13 @@ object RoomFrontend extends js.JSApp {
   @JSExport
   def main(): Unit = {
     val ctx = canvas.getContext("2d").asInstanceOf[dom.CanvasRenderingContext2D]
-    val username: String = dom.document.getElementById("scalajsShoutOut").textContent
+    val username: String = dom.document.cookie
     val system = ActorSystem(s"someSystem-$username")
     val render = system.actorOf(Render.props(ctx, username), s"render-$username")
     val socket = system.actorOf(SocketActor.props(username), s"socket-$username")
     val inputController = system.actorOf(InputController.props(canvas, username), s"input-$username")
     var down = false
 
-    g.console.log(s"name was: ${dom.document.getElementById("scalajsShoutOut").textContent}")
-    dom.document.getElementById("scalajsShoutOut").textContent = "dddd"
-    g.console.log(s"elements: ${dom.document.getElementsByName("div")}")
-
-
-    //canvas.width = canvas.parentElement.clientWidth
-    //canvas.height = canvas.parentElement.clientHeight
-    ctx.fillStyle = "#f8f8f8"
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-    /*code*/
-    ctx.fillStyle = "black"
-
-    canvas.onmousedown =
-      (e: dom.MouseEvent) => down = true
-
-    canvas.onmouseup =
-      (e: dom.MouseEvent) => down = false
-
-    canvas.onmousemove = {
-      (e: dom.MouseEvent) =>
-        val rect =
-          canvas.getBoundingClientRect()
-        if (down) ctx.fillRect(
-          e.clientX - rect.left,
-          e.clientY - rect.top,
-          10, 10
-        )
-    }
-
-    def clear() = {
-      ctx.fillStyle = "black"
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-    }
-
-    g.console.debug("HERE!")
     dom.window.setInterval(() => render ! Render.RedrawMessage, 1000)
   }
 
