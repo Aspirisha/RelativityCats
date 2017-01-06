@@ -1,6 +1,6 @@
 package models
 
-import akka.actor.ActorRef
+import akka.actor.{Actor, ActorRef}
 import akka.persistence.PersistentActor
 import akka.util.Timeout
 import play.Logger
@@ -19,7 +19,7 @@ object GameRoom {
   val usersToStartGame = 2 // this is very dummy for now
 }
 
-class GameRoom extends PersistentActor {
+class GameRoom extends Actor {
   import GameRoom._
 
   import scala.collection.mutable.{Map => MutableMap, Set => MutableSet}
@@ -105,14 +105,4 @@ class GameRoom extends PersistentActor {
         ref ! NotifyActiveUser(players(currentPlayer).username)
     }
   }
-
-  override def receiveRecover: Receive = {
-    case x: Any => Logger.debug("GameManager: receiveRecover")
-  }
-
-  override def receiveCommand: Receive = {
-    case x: Any => Logger.debug("GameManager: receiveCommand")
-  }
-
-  override def persistenceId: String = "1"
 }

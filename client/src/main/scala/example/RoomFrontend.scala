@@ -73,6 +73,7 @@ object RoomFrontend extends js.JSApp {
   val unknownSprite = Sprite("unknown1.png")
   val floorSprite = Sprite("floor.png")
   val wallSprite = Sprite("wall.png")
+  val exitSprite = Sprite("unknown3.png") // TODO change
 
   object Render {
     def props(ctx: dom.CanvasRenderingContext2D, username: String): Props = Props(new Render(ctx, username))
@@ -98,6 +99,7 @@ object RoomFrontend extends js.JSApp {
           mouseSprite.draw(pos, ctx, timer)
         case Cell.wall => wallSprite.draw(pos, ctx, timer)
         case Cell.empty => floorSprite.draw(pos, ctx, timer)
+        case Cell.exit => exitSprite.draw(pos, ctx, timer)
       }
     }
 
