@@ -2,8 +2,7 @@ package example
 
 import java.util.concurrent.atomic.AtomicInteger
 
-import akka.actor.Actor.Receive
-import akka.actor.{Actor, ActorRef, ActorSystem, Props}
+import akka.actor.{Actor, ActorSystem, Props}
 import org.scalajs.dom
 import org.scalajs.dom._
 import org.scalajs.dom.raw.HTMLImageElement
@@ -18,7 +17,6 @@ case class Point(x: Int, y: Int){
   def +(p: Point) = Point(x + p.x, y + p.y)
   def /(d: Int) = Point(x / d, y / d)
 }
-
 
 @JSExport
 object RoomFrontend extends js.JSApp {
@@ -87,11 +85,10 @@ object RoomFrontend extends js.JSApp {
     var currentPlayer = ""
     var players = List.empty[GameCharacter]
     var timer = 0
-    g.console.debug(s"Render creation")
+
     def drawCell(pos: Vector2, cell: Cell): Unit = {
       cell match {
         case Cell.unknown =>
-          g.console.debug("Drawing unknown")
           unknownSprite.draw(pos, ctx, timer)
         case Cell.cat =>
           floorSprite.draw(pos, ctx, timer)
@@ -133,6 +130,7 @@ object RoomFrontend extends js.JSApp {
         redraw
       case msg: NotifyActiveUser =>
         currentPlayer = msg.activeUser
+        g.console.debug(s"Now active user is $currentPlayer")
       case TryMoveResult(event, delta, _) =>
         maze match {
           case None =>
@@ -161,18 +159,18 @@ object RoomFrontend extends js.JSApp {
     val render = context.actorSelection(s"/user/render-$name")
     val inputController = context.actorSelection(s"/user/input-$name")
 
-    def getWebsocketUri(document: Document, nameOfChatParticipant: String): String = {
+    def getWebsocketUri(document: Document): String = {
       val wsProtocol = if (dom.document.location.protocol == "https:") "wss" else "ws"
 
       g.console.debug(s"host is ${dom.document.location.host}")
-      s"$wsProtocol://${dom.document.location.host}/game/socket?name=$nameOfChatParticipant"
+      s"$wsProtocol://${dom.document.location.host}/game/socket?name=$name"
     }
 
-    val chat = new WebSocket(getWebsocketUri(dom.document, name))
+    val socket = new WebSocket(getWebsocketUri(dom.document))
 
-    chat.onmessage = { (event: MessageEvent) =>
-      g.console.debug(s"received message from server ${event.data.toString}")
+    socket.onmessage = { (event: MessageEvent) =>
       val msg = Message.deserialize(event.data.toString)
+      g.console.debug(s"received ${msg.messageType} message from server")
       msg match {
         case msg: RoomStatMessage =>
           val userList = dom.document.getElementById("users").asInstanceOf[html.UList]
@@ -185,26 +183,24 @@ object RoomFrontend extends js.JSApp {
               val element = li.appendChild(dom.document.createTextNode(name))
               userList.appendChild(li)
           }
-          g.console.debug(s"received room state ${msg.data}")
         case msg: NotifyGameStart =>
           players = msg.players
           render ! msg
-          g.console.debug(s"received game start ${msg.data}")
         case msg: NotifyActiveUser =>
           inputController ! msg
           render ! msg
         case msg: TryMoveResult =>
-          g.console.debug(s"received try move result from server: ${msg.result}")
+          g.console.debug(s"try move result: ${msg.result}")
           render ! msg
         case msg: NotifyTimeStep =>
           render ! msg
-        case _ => g.console.debug(s"Received some message from server: $msg")
+        case _ => g.console.debug(s"Received some unknown message from server: $msg")
       }
     }
 
     override def receive: Receive = {
       case x:TryMove =>
-        chat.send(Message.serialize(x))
+        socket.send(Message.serialize(x))
         g.console.debug(s"sent try move message ${x.delta}")
       case _ => //sender()
     }
@@ -228,9 +224,9 @@ object RoomFrontend extends js.JSApp {
     document.onkeydown = (e: dom.KeyboardEvent) => {
       g.console.debug("user pressed some key")
       e.key match {
-        case dom.ext.KeyValue.ArrowDown => socket ! TryMove((0, -1))
+        case dom.ext.KeyValue.ArrowDown => socket ! TryMove((0, 1))
         case dom.ext.KeyValue.ArrowLeft => socket ! TryMove((-1, 0))
-        case dom.ext.KeyValue.ArrowUp => socket ! TryMove((0, 1))
+        case dom.ext.KeyValue.ArrowUp => socket ! TryMove((0, -1))
         case dom.ext.KeyValue.ArrowRight => socket ! TryMove((1, 0))
         case _ => g.console.debug(s"pressed key ${e.key} and arrow is ${dom.ext.KeyValue.ArrowDown}")
       }
@@ -249,6 +245,4 @@ object RoomFrontend extends js.JSApp {
 
     dom.window.setInterval(() => render ! Render.RedrawMessage, 1000)
   }
-
-
 }
