@@ -123,8 +123,9 @@ object RoomFrontend extends js.JSApp {
             timer = 0
         }
       case msg: NotifyGameStart =>
-        maze = Some(msg.data)
         players = msg.players
+      case msg: UserView =>
+        maze = Some(msg.data)
         g.console.debug(s"Got the maze ${maze}")
         cellSize = Vector2(canvas.width / msg.data.size, canvas.height / msg.data.size)
         redraw
@@ -185,6 +186,8 @@ object RoomFrontend extends js.JSApp {
           }
         case msg: NotifyGameStart =>
           players = msg.players
+          render ! msg
+        case msg: UserView =>
           render ! msg
         case msg: NotifyActiveUser =>
           inputController ! msg

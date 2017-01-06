@@ -53,8 +53,17 @@ class GameRoom extends PersistentActor {
         actor ! RoomStatMessage(RoomState(users.toList))
       }
 
-      if (userToRef.size == usersToStartGame && !isGameStarted) {
-        startGame()
+      if (userToRef.size == usersToStartGame) {
+        if (!isGameStarted)
+          startGame()
+        else {
+          val userActor = userToRef(x)
+          userActor ! NotifyActiveUser(players(currentPlayer).username)
+          val res = (players zip playerViews).filter { case (char,view) => char.username == x }
+          for ((p, v) <- res)
+            userActor ! UserView(v)
+        }
+
       }
     case (msg: TryMove, username: String) =>
       Logger.debug("Received try move message")
@@ -91,7 +100,8 @@ class GameRoom extends PersistentActor {
     players zip playerViews foreach {
       case (p, v) =>
         val ref = userToRef(p.username)
-        ref ! NotifyGameStart(v, players)
+        ref ! NotifyGameStart(players)
+        ref ! UserView(v)
         ref ! NotifyActiveUser(players(currentPlayer).username)
     }
   }

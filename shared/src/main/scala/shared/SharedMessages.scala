@@ -35,9 +35,14 @@ object ServerMessage {
 // server to client messages
 case class RoomStatMessage(data: RoomState, messageType: String = "room_stat") extends ServerMessage
 
-case class NotifyGameStart(data: models.MazeView, players: List[GameCharacter], messageType: String = "start_game") extends ServerMessage
+case class NotifyGameStart(players: List[GameCharacter], messageType: String = "start_game") extends ServerMessage
 object NotifyGameStart {
   implicit val fmt: JelloFormat[NotifyGameStart] = JelloFormat.format[NotifyGameStart]
+}
+
+case class UserView(data: models.MazeView, messageType: String = "user_view") extends ServerMessage
+object UserView {
+  implicit val fmt: JelloFormat[UserView] = JelloFormat.format[UserView]
 }
 
 case class NotifyActiveUser(activeUser: String, messageType: String = "active_user") extends ServerMessage
@@ -88,6 +93,7 @@ object Message {
           case "try_move_result" => JelloJson.fromJson[TryMoveResult](ajJV).get
           case "active_user" => JelloJson.fromJson[NotifyActiveUser](ajJV).get
           case "time_step" => JelloJson.fromJson[NotifyTimeStep](ajJV).get
+          case "user_view" => JelloJson.fromJson[UserView](ajJV).get
         }
     }
   }
@@ -102,6 +108,7 @@ object Message {
         case x:NotifyGameStart => JelloJson.toJson[NotifyGameStart](x)
         case x:TryMove => JelloJson.toJson[TryMove](x)
         case x:TryMoveResult => JelloJson.toJson[TryMoveResult](x)
+        case x:UserView => JelloJson.toJson[UserView](x)
       }
 
     }
