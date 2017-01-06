@@ -22,7 +22,9 @@ object RoomState {
   implicit val fmt: JelloFormat[RoomState] = JelloFormat.format[RoomState]
 }
 
-sealed trait Message
+sealed trait Message {
+  val messageType: String
+}
 sealed trait ClientMessage extends Message
 sealed trait ServerMessage extends Message
 

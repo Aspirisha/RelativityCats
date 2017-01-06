@@ -57,13 +57,15 @@ class GameRoom extends PersistentActor {
         startGame()
       }
     case (msg: TryMove, username: String) =>
-      if (players(currentPlayer).username != username)
+      Logger.debug("Received try move message")
+      if (players(currentPlayer).username != username) {
+        Logger.debug("user is not active")
         sender ! TryMoveResult(Maze.Event.invalidStep, msg.delta)
-      else {
+      } else {
         val event = world.renderCharacterStep(playerViews(currentPlayer), msg.delta)
         sender ! TryMoveResult(event, msg.delta)
         event match {
-          case justStep =>
+          case Maze.Event.justStep =>
             currentPlayer += 1
             if (currentPlayer == players.size) {
               currentPlayer = 0

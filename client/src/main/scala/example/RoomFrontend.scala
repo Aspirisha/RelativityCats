@@ -139,11 +139,16 @@ object RoomFrontend extends js.JSApp {
           case Some(m) =>
             event match {
               case Maze.Event.justStep =>
+                m.visibleRoadMap update (m.position, Cell.empty)
                 m.position += delta
+                m.visibleRoadMap update (m.position, m.character)
                 redraw
               case _ => g.console.debug("Implement me!")
             }
         }
+      case msg: NotifyTimeStep =>
+        maze = Some(msg.mazeView)
+        redraw
     }
   }
 
@@ -190,6 +195,8 @@ object RoomFrontend extends js.JSApp {
           render ! msg
         case msg: TryMoveResult =>
           g.console.debug(s"received try move result from server: ${msg.result}")
+          render ! msg
+        case msg: NotifyTimeStep =>
           render ! msg
         case _ => g.console.debug(s"Received some message from server: $msg")
       }

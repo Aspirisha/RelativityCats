@@ -279,17 +279,16 @@ case class MazeView(size: Int, var position: Vector2,
       val pos = position + dist * step
       if (isValidPos(pos, size)) {
         visibleRoadMap update(pos, visibilityMap(dist - 1)(pos))
-        staticRoadMap(pos) match {
-          case Cell.unknown =>
-            val newStaticValue = {
-              visibleRoadMap(pos) match {
-                case Cell.wall => Cell.wall
-                case Cell.exit => Cell.exit
-                case Cell.unknown => Cell.unknown
-                case _ => Cell.empty
-              }
+        if (staticRoadMap(pos) == Cell.unknown) {
+          val newStaticValue = {
+            visibleRoadMap(pos) match {
+              case Cell.wall => Cell.wall
+              case Cell.exit => Cell.exit
+              case Cell.unknown => Cell.unknown
+              case _ => Cell.empty
             }
-            staticRoadMap update(pos, newStaticValue)
+          }
+          staticRoadMap update(pos, newStaticValue)
         }
 
         if (visibleRoadMap(pos).empty) {
