@@ -65,8 +65,7 @@ object RoomFrontend extends js.JSApp {
 
       ctx.lineWidth = 1
       ctx.strokeStyle = "#A57D00"
-      ctx.rect(pos.x * cellSize.x, pos.y * cellSize.y,
-        (pos.x + 1) * cellSize.x - 1, (pos.y + 1) * cellSize.y - 1)
+      ctx.rect(pos.x * cellSize.x, pos.y * cellSize.y, cellSize.x, cellSize.y)
       ctx.stroke()
     }
   }
